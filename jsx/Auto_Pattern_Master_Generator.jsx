@@ -131,6 +131,32 @@ function generatePatterns(isBasketballStr) {
                     var currentBgCX = bgGroup.left + (bgGroup.width / 2);
                     bgGroup.translate(targetCX - currentBgCX, 0);
 
+                    // ==========================================
+                    // 🛡️ ระบบล็อคสัดส่วนปลายแขน (Cuff Lock)
+                    // ==========================================
+                    if (masterName === "Left_Sleeve" || masterName === "Right_Sleeve") {
+                        try {
+                            var cuffGroup = dupMaster.groupItems.getByName("Cuff");
+                            
+                            // 1. ล็อคความสูง (Height) ไว้ที่ 2 นิ้ว (144 points) พอดี
+                            var targetCuffH = 144;
+                            var cuffScaleH = (targetCuffH / cuffGroup.height) * 100;
+                            
+                            // 2. ขยายความกว้าง (Width) ตามสัดส่วนหน้าต่าง
+                            var cuffScaleW = (targetW / currentRefW) * 100;
+                            
+                            // 3. สั่ง Resize โดยอ้างอิงตำแหน่งด้านล่าง
+                            cuffGroup.resize(cuffScaleW, cuffScaleH, true, true, true, true, 100, Transformation.BOTTOM);
+                            
+                            // 4. จัดตำแหน่งกึ่งกลางแนวแกน X ใหม่
+                            var currentCuffCX = cuffGroup.left + (cuffGroup.width / 2);
+                            cuffGroup.translate(targetCX - currentCuffCX, 0);
+                            
+                        } catch (eCuff) {
+                            // ถ้าเลเยอร์นี้ไม่มี Cuff ก็ให้ทำงานผ่านไปตามปกติ
+                        }
+                    }
+
                 } catch (e) {
                     var fallbackScale = (targetH / dupMaster.height) * 100;
                     dupMaster.resize(fallbackScale, fallbackScale, true, true, true, true, fallbackScale, Transformation.CENTER);
