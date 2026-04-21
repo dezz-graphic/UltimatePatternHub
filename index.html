@@ -85,6 +85,25 @@
         </div>
     </div>
 
+    <!-- DRM Lock Screen -->
+    <div id="lock-screen-overlay" class="drm-overlay">
+        <div class="drm-box">
+            <img src="logo_lockscreen.png" alt="DEZZ" class="drm-logo">
+            <h2>DEZZ GRAPHICS</h2>
+            <p>Please enter your License Key to unlock.</p>
+            <div class="drm-info">
+                <span>Machine ID:</span>
+                <input type="text" id="machine-id-display" readonly>
+            </div>
+            <div class="drm-input-group">
+                <input type="text" id="license-key-input" placeholder="Enter License Key...">
+                <button id="btn-unlock" class="btn-unlock">UNLOCK</button>
+                <button id="btn-contact-dezz" class="btn-contact-dezz">Contact to Get License Key</button>
+            </div>
+            <p id="drm-error-msg" class="drm-error-msg"></p>
+        </div>
+    </div>
+
     <script src="js/main.js"></script>
 </body>
 </html>
