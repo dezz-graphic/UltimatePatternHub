@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Pattern Hub by DEZZ</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/CSInterface.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 1. Renamer & Layout -->
+        <div class="section">
+            <h2>1. Renamer & Layout Hub</h2>
+            <div class="grid-2">
+                <button id="btn-rename-front">👕 Front</button>
+                <button id="btn-rename-back">🎽 Back</button>
+                <button id="btn-rename-left">💪 Left Arm</button>
+                <button id="btn-rename-right">💪 Right Arm</button>
+            </div>
+            <div class="divider"></div>
+            <button id="btn-layout-football" class="btn-primary">⚽ Auto Layout Football</button>
+            <button id="btn-layout-basketball" class="btn-primary">🏀 Auto Layout Basketball</button>
+        </div>
+
+        <!-- 2. Smart Tagger -->
+        <div class="section">
+            <h2>2. Smart Tagger</h2>
+            <div class="tag-group">Main Parts</div>
+            <div class="grid-2">
+                <button class="btn-tag" data-tag="Front_Panel">Front Panel</button>
+                <button class="btn-tag" data-tag="Back_Panel">Back Panel</button>
+                <button class="btn-tag" data-tag="Left_Sleeve">Left Sleeve</button>
+                <button class="btn-tag" data-tag="Right_Sleeve">Right Sleeve</button>
+            </div>
+            
+            <div class="tag-group">Elements</div>
+            <div class="grid-3">
+                <button class="btn-tag" data-tag="Graphics">Graphics</button>
+                <button class="btn-tag" data-tag="Background">Background</button>
+                <button class="btn-tag" data-tag="Cuff">Cuff</button>
+            </div>
+
+            <div class="tag-group">Text Data (VDP)</div>
+            <div class="grid-3">
+                <button class="btn-tag" data-tag="VDP_NAME">Name</button>
+                <button class="btn-tag" data-tag="VDP_NUMBER">Number</button>
+                <button class="btn-tag" data-tag="SizeText">SizeText</button>
+            </div>
+        </div>
+
+        <!-- 3. Auto Pattern Master -->
+        <div class="section">
+            <h2>3. Auto Pattern Master</h2>
+            <button id="btn-pattern-football" class="btn-accent">⚽ Generate Football Patterns</button>
+            <button id="btn-pattern-basketball" class="btn-accent">🏀 Generate Basketball Patterns</button>
+        </div>
+
+        <!-- 4. VDP Exporter -->
+        <div class="section">
+            <h2>4. VDP Exporter</h2>
+            <button id="btn-export-tiff" class="btn-export">🖨️ Export TIFF (CMYK)</button>
+            <button id="btn-export-jpg" class="btn-export">📸 Export JPG (RGB)</button>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar" class="status-bar" style="display: flex; justify-content: space-between; align-items: center; padding-right: 15px;">
+        <span id="status-text">Ready...</span>
+        <a href="#" id="dezz-bio-link">Dezz Graphics</a>
+    </div>
+
+    <!-- DEZZ Modal -->
+    <div id="dezz-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>DEZZ Graphics</h3>
+            <p>คุณกำลังจะเปิดหน้าเว็บเบราว์เซอร์เพื่อเข้าสู่เว็บไซต์พอร์ตโฟลิโออย่างเป็นทางการของ DEZZ Graphics ต้องการดำเนินการต่อหรือไม่?</p>
+            <div class="modal-actions">
+                <button id="modal-btn-cancel" class="btn-modal-cancel">ยกเลิก (Cancel)</button>
+                <button id="modal-btn-visit" class="btn-modal-visit">เปิดเว็บไซต์ (Visit Site)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
