@@ -32,11 +32,16 @@ function runVDP(isTIFFStr) {
         }
 
         function updateVDP(group, pName, pNum) {
-            for (var i = 0; i < group.pageItems.length; i++) {
+            for (var i = group.pageItems.length - 1; i >= 0; i--) {
                 var item = group.pageItems[i];
                 if (item.typename === "TextFrame") {
-                    if (item.name === "VDP_NAME") item.contents = pName;
-                    if (item.name === "VDP_NUMBER") item.contents = pNum;
+                    if (item.name === "VDP_NAME") {
+                        if (pName) item.contents = pName;
+                        else try { item.remove(); } catch(e) { item.hidden = true; }
+                    } else if (item.name === "VDP_NUMBER") {
+                        if (pNum) item.contents = pNum;
+                        else try { item.remove(); } catch(e) { item.hidden = true; }
+                    }
                 } else if (item.typename === "GroupItem") { updateVDP(item, pName, pNum); }
             }
         }
@@ -70,15 +75,25 @@ function runVDP(isTIFFStr) {
             "Right_Sleeve": "TARGET_RIGHT_ARM"
         };
 
+        var fileCounter = 1;
         for (var r = 1; r < lines.length; r++) {
             var line = lines[r];
             if (line.replace(/\s/g, '') === "") continue;
             var data = line.split(',');
-            if (data.length < 3) continue;
+            if (data.length === 0) continue;
 
-            var pName = data[0].replace(/^\s+|\s+$/g, ''); 
-            var pNum = data[1].replace(/^\s+|\s+$/g, '');  
-            var pSize = data[2].replace(/^\s+|\s+$/g, '').toUpperCase(); 
+            var pName = "", pNum = "", pSize = "";
+            if (data.length >= 3) {
+                pName = data[0].replace(/^\s+|\s+$/g, '');
+                pNum = data[1].replace(/^\s+|\s+$/g, '');
+                pSize = data[2].replace(/^\s+|\s+$/g, '').toUpperCase();
+            } else if (data.length === 2) {
+                pName = data[0].replace(/^\s+|\s+$/g, '');
+                pSize = data[1].replace(/^\s+|\s+$/g, '').toUpperCase();
+            } else if (data.length === 1) {
+                pSize = data[0].replace(/^\s+|\s+$/g, '').toUpperCase();
+            }
+            if (!pSize) continue; 
 
             var tempGrp = null;
 
@@ -176,10 +191,23 @@ function runVDP(isTIFFStr) {
                 mainAB.artboardRect = [bL - pad, bT + pad, bR + pad, bB - pad];
 
                 // --- 💾 Export ตามสกุลไฟล์ที่เลือก ---
+                var seqStr = ("000" + fileCounter).slice(-3);
+                var fNameBase = "";
+                if (!pName && !pNum) {
+                    fNameBase = "Item-" + seqStr;
+                } else if (pNum && !pName) {
+                    fNameBase = seqStr + "_#" + pNum;
+                } else if (!pNum && pName) {
+                    fNameBase = seqStr + "_" + cleanName(pName);
+                } else if (pNum && pName) {
+                    fNameBase = seqStr + "_#" + pNum + "_" + cleanName(pName);
+                }
+                
+                var ext = isTIFF ? ".tif" : ".jpg";
+                var fName = fNameBase + "_SIZE-" + pSize + ext;
+                var dFile = new File(outFolder.fsName + "/" + fName);
+
                 if (isTIFF) {
-                    var fName = pNum + "_" + cleanName(pName) + "_SIZE-" + pSize + ".tif";
-                    var dFile = new File(outFolder.fsName + "/" + fName);
-                    
                     var tiffOpt = new ExportOptionsTIFF();
                     tiffOpt.artBoardClipping = true;
                     tiffOpt.imageColorSpace = ImageColorSpace.CMYK; 
@@ -190,9 +218,6 @@ function runVDP(isTIFFStr) {
                     
                     doc.exportFile(dFile, ExportType.TIFF, tiffOpt);
                 } else {
-                    var fName = pNum + "_" + cleanName(pName) + "_SIZE-" + pSize + ".jpg";
-                    var dFile = new File(outFolder.fsName + "/" + fName);
-                    
                     var jOpt = new ExportOptionsJPEG();
                     jOpt.artBoardClipping = true;    
                     jOpt.qualitySetting = 100;       
@@ -205,6 +230,7 @@ function runVDP(isTIFFStr) {
 
                 tempGrp.remove();
                 successCount++;
+                fileCounter++;
 
             } catch (err) {
                 errLogs.push(pName + " (" + pSize + "): " + err.message);

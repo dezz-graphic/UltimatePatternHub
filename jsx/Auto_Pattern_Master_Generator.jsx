@@ -69,6 +69,8 @@ function generatePatterns(isBasketballStr) {
             var sizeLayer = outputLayer.layers.add();
             sizeLayer.name = "SIZE_" + currentSize;
 
+            var bL = Infinity, bT = -Infinity, bR = -Infinity, bB = Infinity;
+
             for (var masterName in partMapping) {
                 var targetNameBase = partMapping[masterName];
                 var targetFullName = targetNameBase + "_" + currentSize;
@@ -179,7 +181,19 @@ function generatePatterns(isBasketballStr) {
 
                 applyStrokeToItem(maskPath, cutColor, 2);
 
+                var mb = maskPath.visibleBounds;
+                if (mb[0] < bL) bL = mb[0];
+                if (mb[1] > bT) bT = mb[1];
+                if (mb[2] > bR) bR = mb[2];
+                if (mb[3] < bB) bB = mb[3];
+
                 successCount++;
+            }
+
+            if (bL !== Infinity) {
+                var newRect = [bL - 15, bT + 15, bR + 15, bB - 15];
+                var newAB = doc.artboards.add(newRect);
+                newAB.name = "SIZE_" + currentSize;
             }
         }
         
