@@ -63,18 +63,24 @@ console.log('\n✅ File preparation complete.\n');
 
 // 3. Compile with Inno Setup
 console.log('⏳ Compiling installer with Inno Setup... (This may take a few seconds)');
-const isccPath = '"C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe"';
+const isccPathRaw = 'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe';
+const isccPath = `"${isccPathRaw}"`;
 const issFile = 'build_installer.iss';
 
-// Run ISCC.exe
-exec(`${isccPath} ${issFile}`, (error, stdout, stderr) => {
-    if (error) {
-        console.error(`\n❌ Error compiling installer:`);
-        console.error(error.message);
-        console.error(`\n💡 Tip: Make sure Inno Setup 6 is installed at the expected path.`);
-        return;
-    }
-    
-    console.log(`\n🎉 Build Complete Successfully!`);
-    console.log(`📁 Your installer 'UltimatePatternHub_Installer.exe' is ready.`);
-});
+if (!fs.existsSync(isccPathRaw)) {
+    console.log(`\n⚠️  Inno Setup 6 not found at: ${isccPathRaw}`);
+    console.log(`💡 Skipping installer build. Your files are ready in the 'dist' folder.`);
+} else {
+    // Run ISCC.exe
+    exec(`${isccPath} ${issFile}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`\n❌ Error compiling installer:`);
+            console.error(error.message);
+            console.error(`\n💡 Tip: Make sure Inno Setup 6 is installed at the expected path.`);
+            return;
+        }
+        
+        console.log(`\n🎉 Build Complete Successfully!`);
+        console.log(`📁 Your installer 'UltimatePatternHub_Installer.exe' is ready.`);
+    });
+}

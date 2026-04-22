@@ -64,6 +64,26 @@ function generatePatterns(isBasketballStr) {
             }
         }
 
+        // ฟังก์ชันหาขอบเขตของ Clipping Path จริงๆ
+        function getTrueMaskBounds(targetGroup) {
+            if (targetGroup.typename === "GroupItem") {
+                $.writeln('Searching in: ' + targetGroup.name);
+                for (var i = 0; i < targetGroup.pageItems.length; i++) {
+                    var item = targetGroup.pageItems[i];
+                    if (item.typename === "PathItem" && item.clipping == true) {
+                        $.writeln('Found Clipping Path: ' + item.name + ' Bounds: ' + item.geometricBounds);
+                        return item.geometricBounds;
+                    } else if (item.typename === "GroupItem") {
+                        var bounds = getTrueMaskBounds(item);
+                        if (bounds) return bounds;
+                    }
+                }
+            } else if (targetGroup.typename === "PathItem" || targetGroup.typename === "CompoundPathItem") {
+                return targetGroup.geometricBounds;
+            }
+            return null; // ถ้าหาไม่เจอ
+        }
+
         for (var i = 0; i < sizes.length; i++) {
             var currentSize = sizes[i];
             var sizeLayer = outputLayer.layers.add();
@@ -99,45 +119,70 @@ function generatePatterns(isBasketballStr) {
                 findAndReplaceSizeText(dupMaster, sizeLabelToPrint);
                 // ==========================================
 
-                var targetW = targetPattern.width;
-                var targetH = targetPattern.height;
+                var targetBounds = getTrueMaskBounds(targetPattern) || targetPattern.geometricBounds;
+                var targetW = targetBounds[2] - targetBounds[0];
+                var targetH = targetBounds[1] - targetBounds[3];
 
                 try {
                     var graphicGroup = dupMaster.groupItems.getByName("Graphics");
-                    var bgGroup = dupMaster.groupItems.getByName("Background");
                     
                     var refPath = graphicGroup;
                     if (graphicGroup.clipped && graphicGroup.pageItems.length > 0) {
                         refPath = graphicGroup.pageItems[0]; 
                     }
 
-                    var masterRefH = refPath.height;
+                    var masterRefBounds = getTrueMaskBounds(dupMaster) || refPath.geometricBounds;
+                    var masterRefH = masterRefBounds[1] - masterRefBounds[3];
+                    var masterRefW = masterRefBounds[2] - masterRefBounds[0];
 
-                    // 2. Uniform Scale
+                    // === STEP 1: Uniform Scale ===
                     var scaleH_Percent = (targetH / masterRefH) * 100;
                     dupMaster.resize(scaleH_Percent, scaleH_Percent, true, true, true, true, scaleH_Percent, Transformation.CENTER);
 
-                    // 3. Non-Uniform Scale Background Width
-                    var currentRefW = refPath.width; 
-                    var bgScaleW_Percent = (targetW / currentRefW) * 100;
+                    // === STEP 2: Non-Uniform Scale Background Width ===
+                    var bgGroup = dupMaster.groupItems.getByName("Background");
+                    var bgScaleW_Percent = (targetW / masterRefW) * 100;
                     bgGroup.resize(bgScaleW_Percent, 100, true, true, true, true, 100, Transformation.CENTER);
 
-                    // 4. Alignment
-                    var targetCX = targetPattern.left + (targetPattern.width / 2);
-                    var targetCY = targetPattern.top - (targetPattern.height / 2);
-                    var refCX = refPath.left + (refPath.width / 2);
-                    var refCY = refPath.top - (refPath.height / 2);
+                    // === STEP 3: ALIGNMENT (ลำดับเคร่งครัด — ห้ามสลับ!) ===
+                    // 3.1 — บังคับเคลียร์แคช Illustrator ทันทีหลัง Scale เสร็จ
+                    app.redraw();
 
-                    dupMaster.translate(targetCX - refCX, targetCY - refCY);
+                    // 3.2 — ดึง Background bounds ใหม่สด (หลัง redraw แล้ว!)
+                    var sourceBg = dupMaster.groupItems.getByName("Background");
+                    var sourceBounds = sourceBg.visibleBounds;
+                    $.writeln('Source BG Bounds (after redraw): ' + sourceBounds);
 
-                    var currentBgCX = bgGroup.left + (bgGroup.width / 2);
-                    bgGroup.translate(targetCX - currentBgCX, 0);
+                    // 3.3 — ดึง Target bounds
+                    var targetCenterX = (targetBounds[0] + targetBounds[2]) / 2;
+                    var targetCenterY = (targetBounds[1] + targetBounds[3]) / 2;
+
+                    // 3.4 — คำนวณ Source Center
+                    var sourceCenterX = (sourceBounds[0] + sourceBounds[2]) / 2;
+                    var sourceCenterY = (sourceBounds[1] + sourceBounds[3]) / 2;
+
+                    // 3.5 — คำนวณ Delta
+                    var deltaX = targetCenterX - sourceCenterX;
+                    var deltaY = targetCenterY - sourceCenterY;
+                    $.writeln('Calculated Delta: ' + deltaX + ', ' + deltaY);
+
+                    // 3.6 — ย้ายชิ้นงานทั้งหมดไปยังตำแหน่งเป้าหมาย
+                    dupMaster.translate(deltaX, deltaY);
+
+                    // === STEP 4: จัดศูนย์ Background แกน X ===
+                    app.redraw();
+                    var updatedBgBounds = dupMaster.groupItems.getByName("Background").visibleBounds;
+                    var currentBgCX = (updatedBgBounds[0] + updatedBgBounds[2]) / 2;
+                    bgGroup.translate(targetCenterX - currentBgCX, 0);
+                    
+                    var targetCX = targetCenterX; // for cuff lock below
 
                     // ==========================================
                     // 🛡️ ระบบล็อคสัดส่วนปลายแขน (Cuff Lock)
                     // ==========================================
                     if (masterName === "Left_Sleeve" || masterName === "Right_Sleeve") {
                         try {
+                            app.redraw();
                             var cuffGroup = dupMaster.groupItems.getByName("Cuff");
                             
                             // 1. ล็อคความสูง (Height) ไว้ที่ 2 นิ้ว (144 points) พอดี
@@ -145,12 +190,13 @@ function generatePatterns(isBasketballStr) {
                             var cuffScaleH = (targetCuffH / cuffGroup.height) * 100;
                             
                             // 2. ขยายความกว้าง (Width) ตามสัดส่วนหน้าต่าง
-                            var cuffScaleW = (targetW / currentRefW) * 100;
+                            var cuffScaleW = bgScaleW_Percent;
                             
                             // 3. สั่ง Resize โดยอ้างอิงตำแหน่งด้านล่าง
                             cuffGroup.resize(cuffScaleW, cuffScaleH, true, true, true, true, 100, Transformation.BOTTOM);
                             
                             // 4. จัดตำแหน่งกึ่งกลางแนวแกน X ใหม่
+                            app.redraw();
                             var currentCuffCX = cuffGroup.left + (cuffGroup.width / 2);
                             cuffGroup.translate(targetCX - currentCuffCX, 0);
                             
@@ -160,14 +206,28 @@ function generatePatterns(isBasketballStr) {
                     }
 
                 } catch (e) {
+                    // Fallback: ไม่มี Graphics/Background — ใช้ bounds ของ dupMaster ตรงๆ
                     var fallbackScale = (targetH / dupMaster.height) * 100;
                     dupMaster.resize(fallbackScale, fallbackScale, true, true, true, true, fallbackScale, Transformation.CENTER);
                     
-                    var tCX = targetPattern.left + (targetPattern.width / 2);
-                    var tCY = targetPattern.top - (targetPattern.height / 2);
-                    var dCX = dupMaster.left + (dupMaster.width / 2);
-                    var dCY = dupMaster.top - (dupMaster.height / 2);
-                    dupMaster.translate(tCX - dCX, tCY - dCY);
+                    // บังคับเคลียร์แคชก่อนดึงค่า bounds
+                    app.redraw();
+                    
+                    // ดึง bounds ใหม่สดหลัง redraw
+                    var fbSourceBounds;
+                    try {
+                        var fbBg = dupMaster.groupItems.getByName("Background");
+                        fbSourceBounds = fbBg.visibleBounds;
+                    } catch (eBg) {
+                        fbSourceBounds = dupMaster.geometricBounds;
+                    }
+
+                    var fbTargetCX = (targetBounds[0] + targetBounds[2]) / 2;
+                    var fbTargetCY = (targetBounds[1] + targetBounds[3]) / 2;
+                    var fbSourceCX = (fbSourceBounds[0] + fbSourceBounds[2]) / 2;
+                    var fbSourceCY = (fbSourceBounds[1] + fbSourceBounds[3]) / 2;
+                    
+                    dupMaster.translate(fbTargetCX - fbSourceCX, fbTargetCY - fbSourceCY);
                 }
 
                 // ==========================================
