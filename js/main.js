@@ -164,11 +164,14 @@ function initCoreLogic() {
     // ==========================================
     // 4. VDP Exporter
     // ==========================================
+    document.getElementById('btn-export-pdf').addEventListener('click', () => {
+        evalScript(`runVDP('pdf')`);
+    });
     document.getElementById('btn-export-tiff').addEventListener('click', () => {
-        evalScript(`runVDP('true')`);
+        evalScript(`runVDP('tiff')`);
     });
     document.getElementById('btn-export-jpg').addEventListener('click', () => {
-        evalScript(`runVDP('false')`);
+        evalScript(`runVDP('jpg')`);
     });
 
     // ==========================================

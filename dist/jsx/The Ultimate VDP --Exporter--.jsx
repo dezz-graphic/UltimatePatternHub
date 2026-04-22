@@ -1,5 +1,7 @@
-function runVDP(isTIFFStr) {
-    var isTIFF = (isTIFFStr === 'true');
+function runVDP(exportModeStr) {
+    var isPDF = (exportModeStr === 'pdf');
+    var isTIFF = (exportModeStr === 'tiff' || exportModeStr === 'true');
+    var isJPG = (exportModeStr === 'jpg' || exportModeStr === 'false');
     try {
         if (app.documents.length === 0) {
             return "ERROR|❌ กรุณาเปิดไฟล์ก่อนรันสคริปต์ครับ";
@@ -51,7 +53,7 @@ function runVDP(isTIFFStr) {
         var csvFile = File.openDialog("📋 เลือกไฟล์รายชื่อ CSV", "*.csv");
         if (!csvFile) return "ERROR|⚠️ ยกเลิกการเลือกไฟล์ CSV";
         
-        var formatName = isTIFF ? "TIFF (CMYK)" : "JPG (RGB)";
+        var formatName = isPDF ? "PDF (Print Ready)" : (isTIFF ? "TIFF (CMYK)" : "JPG (RGB)");
         var outFolder = Folder.selectDialog("📁 เลือกโฟลเดอร์สำหรับเซฟ " + formatName);
         if (!outFolder) return "ERROR|⚠️ ยกเลิกการเลือกโฟลเดอร์";
 
@@ -189,6 +191,9 @@ function runVDP(isTIFFStr) {
                 // --- 📏 สร้าง Artboard ขอบ 0.1 นิ้ว (7.2 pt) ตามของที่มีจริง ---
                 var pad = 7.2;
                 mainAB.artboardRect = [bL - pad, bT + pad, bR + pad, bB - pad];
+                
+                // --- 🎯 บังคับเลือก Active Artboard ให้ตรงกับไซส์ที่กำลังจะ Export (ป้องกันการติดขอบขาว) ---
+                doc.artboards.setActiveArtboardIndex(0);
 
                 // --- 💾 Export ตามสกุลไฟล์ที่เลือก ---
                 var seqStr = ("000" + fileCounter).slice(-3);
@@ -203,24 +208,75 @@ function runVDP(isTIFFStr) {
                     fNameBase = seqStr + "_#" + pNum + "_" + cleanName(pName);
                 }
                 
-                var ext = isTIFF ? ".tif" : ".jpg";
+                var ext = isPDF ? ".pdf" : (isTIFF ? ".tif" : ".jpg");
                 var fName = fNameBase + "_SIZE-" + pSize + ext;
                 var dFile = new File(outFolder.fsName + "/" + fName);
 
-                if (isTIFF) {
-                    var tiffOpt = new ExportOptionsTIFF();
-                    tiffOpt.artBoardClipping = true;
-                    tiffOpt.imageColorSpace = ImageColorSpace.CMYK; 
-                    tiffOpt.resolution = 300; 
-                    tiffOpt.lzwCompression = true; 
-                    tiffOpt.byteOrder = TIFFByteOrder.IBMPC; 
-                    tiffOpt.antiAliasing = AntiAliasingMethod.ARTOPTIMIZED; 
+                if (isPDF) {
+                    var pdfOpts = new PDFSaveOptions();
                     
-                    doc.exportFile(dFile, ExportType.TIFF, tiffOpt);
+                    // 3. ตั้งค่า PDF ให้ครอบคลุมการมองเห็น
+                    pdfOpts.artboardRange = "1";
+                    pdfOpts.preserveEditability = false; // ปิดการแก้ไข เพื่อให้ไฟล์เล็กสุดๆ
+                    pdfOpts.optimization = true;
+                    pdfOpts.compressArt = true;
+
+                    try {
+                        // เพื่อป้องกัน doc.saveAs เปลี่ยนชื่อไฟล์ Master จึงสร้างไฟล์ชั่วคราว
+                        var tempDoc = app.documents.add(doc.documentColorSpace);
+                        
+                        // 1. เลิกใช้ Copy/Paste เปลี่ยนเป็น Duplicate
+                        // ห้ามใช้ app.copy() และ app.paste() เด็ดขาด ให้ใช้คำสั่งโคลน Object ข้าม Document แทน
+                        var targetGroup = tempGrp;
+                        var duplicatedGroup = targetGroup.duplicate(tempDoc.activeLayer, ElementPlacement.PLACEATEND);
+                        
+                        // ป้องกันชิ้นงานหลุด Canvas: ย้ายชิ้นงานมาที่พิกัด 0,0 ของไฟล์ใหม่ก่อน
+                        var initialBounds = duplicatedGroup.visibleBounds;
+                        duplicatedGroup.translate(-initialBounds[0], -initialBounds[1]);
+                        
+                        // 2. จัดการพิกัดให้ Artboard ครอบชิ้นงานเป๊ะ 100%
+                        var bounds = duplicatedGroup.visibleBounds;
+                        tempDoc.artboards[0].artboardRect = bounds;
+                        
+                        // สั่ง Save และปิดไฟล์
+                        tempDoc.saveAs(dFile, pdfOpts);
+                        tempDoc.close(SaveOptions.DONOTSAVECHANGES);
+                        
+                        app.activeDocument = doc; // กลับมาไฟล์เดิม
+                    } catch(e) {
+                        try { tempDoc.close(SaveOptions.DONOTSAVECHANGES); } catch(ex) {}
+                        app.activeDocument = doc;
+                        alert("PDF Export Error: " + e.message);
+                        throw new Error("PDF Export Error: " + e.message);
+                    }
+                } else if (isTIFF) {
+                    var tiffOpts = new ExportOptionsTIFF();
+                    tiffOpts.resolution = 300;
+                    tiffOpts.imageColorSpace = ImageColorSpace.CMYK;
+                    tiffOpts.lzwCompression = false; // ปิดบีบอัดเพื่อให้ RIP อ่านง่ายสุด
+                    tiffOpts.byteOrder = TIFFByteOrder.IBMPC;
+                    
+                    // การจัดการเรื่อง Artboard Range
+                    // ห้ามใช้ artBoardClipping = true สำหรับ TIFF เพราะมักจะทำให้เกิดบัค
+                    tiffOpts.saveMultipleArtboards = true;
+                    tiffOpts.artboardRange = "1";
+                    
+                    try {
+                        doc.exportFile(dFile, ExportType.TIFF, tiffOpts);
+                    } catch(e) {
+                        alert("TIFF Export Error: " + e.message);
+                        throw new Error("TIFF Export Error: " + e.message);
+                    }
                 } else {
                     var jOpt = new ExportOptionsJPEG();
                     jOpt.artBoardClipping = true;    
+                    try {
+                        jOpt.saveMultipleArtboards = true;
+                        jOpt.artboardRange = "1";
+                    } catch(e) {}
                     jOpt.qualitySetting = 100;       
+                    // การ Export JPG จากสคริปต์จะไม่ได้ฝัง Metadata 300 PPI (จะกลายเป็น 72 DPI และขยายสเกลเอา)
+                    // ทำให้โปรแกรม RIP เห็นเป็นภาพขนาดใหญ่ 4 เท่า จึงควรใช้ TIFF หากต้องการนำไปเข้า RIP
                     jOpt.horizontalScale = 416.6666; // = 300 DPI
                     jOpt.verticalScale = 416.6666;   
                     jOpt.antiAliasing = true;        
