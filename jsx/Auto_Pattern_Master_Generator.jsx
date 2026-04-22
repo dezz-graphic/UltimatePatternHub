@@ -64,24 +64,25 @@ function generatePatterns(isBasketballStr) {
             }
         }
 
-        // ฟังก์ชันหาขอบเขตของ Clipping Path จริงๆ
-        function getTrueMaskBounds(targetGroup) {
-            if (targetGroup.typename === "GroupItem") {
-                $.writeln('Searching in: ' + targetGroup.name);
-                for (var i = 0; i < targetGroup.pageItems.length; i++) {
-                    var item = targetGroup.pageItems[i];
-                    if (item.typename === "PathItem" && item.clipping == true) {
-                        $.writeln('Found Clipping Path: ' + item.name + ' Bounds: ' + item.geometricBounds);
-                        return item.geometricBounds;
-                    } else if (item.typename === "GroupItem") {
-                        var bounds = getTrueMaskBounds(item);
-                        if (bounds) return bounds;
+        // ฟังก์ชันหาหน้ากากหลัก (Direct DOM Targeting — ไม่ใช้ Recursive)
+        // โครงสร้าง: Background (Group) -> <Clip Group> -> <Clipping Path> (index 0 เสมอ)
+        function getMainMaskBounds(bgGroup) {
+            try {
+                // วนลูปหา Clip Group ที่เป็นลูกสายตรงของ Background
+                for (var i = 0; i < bgGroup.groupItems.length; i++) {
+                    var childGroup = bgGroup.groupItems[i];
+                    // เช็คว่า Group นี้ถูก Clip ไว้หรือไม่
+                    if (childGroup.clipped === true) {
+                        // หน้ากากหลักจะอยู่ตำแหน่ง index 0 ของ Clip Group เสมอ!
+                        var maskItem = childGroup.pageItems[0];
+                        $.writeln('getMainMaskBounds -> Found Clip Group: ' + childGroup.name + ', Mask: ' + maskItem.name + ', Bounds: ' + maskItem.geometricBounds);
+                        return maskItem.geometricBounds;
                     }
                 }
-            } else if (targetGroup.typename === "PathItem" || targetGroup.typename === "CompoundPathItem") {
-                return targetGroup.geometricBounds;
+            } catch (e) {
+                $.writeln('getMainMaskBounds Error: ' + e.message);
             }
-            return null; // ถ้าหาไม่เจอ
+            return null; // ถ้าหาไม่เจอจริงๆ ค่อย return null
         }
 
         for (var i = 0; i < sizes.length; i++) {
@@ -119,19 +120,16 @@ function generatePatterns(isBasketballStr) {
                 findAndReplaceSizeText(dupMaster, sizeLabelToPrint);
                 // ==========================================
 
-                var targetBounds = getTrueMaskBounds(targetPattern) || targetPattern.geometricBounds;
+                var targetBounds = targetPattern.geometricBounds;
                 var targetW = targetBounds[2] - targetBounds[0];
                 var targetH = targetBounds[1] - targetBounds[3];
 
                 try {
                     var graphicGroup = dupMaster.groupItems.getByName("Graphics");
-                    
-                    var refPath = graphicGroup;
-                    if (graphicGroup.clipped && graphicGroup.pageItems.length > 0) {
-                        refPath = graphicGroup.pageItems[0]; 
-                    }
+                    var bgGroup = dupMaster.groupItems.getByName("Background");
 
-                    var masterRefBounds = getTrueMaskBounds(dupMaster) || refPath.geometricBounds;
+                    // ดึงขนาด Master จาก Background Mask (แม่นยำ 100%)
+                    var masterRefBounds = getMainMaskBounds(bgGroup) || bgGroup.visibleBounds;
                     var masterRefH = masterRefBounds[1] - masterRefBounds[3];
                     var masterRefW = masterRefBounds[2] - masterRefBounds[0];
 
@@ -140,7 +138,6 @@ function generatePatterns(isBasketballStr) {
                     dupMaster.resize(scaleH_Percent, scaleH_Percent, true, true, true, true, scaleH_Percent, Transformation.CENTER);
 
                     // === STEP 2: Non-Uniform Scale Background Width ===
-                    var bgGroup = dupMaster.groupItems.getByName("Background");
                     var bgScaleW_Percent = (targetW / masterRefW) * 100;
                     bgGroup.resize(bgScaleW_Percent, 100, true, true, true, true, 100, Transformation.CENTER);
 
@@ -148,12 +145,18 @@ function generatePatterns(isBasketballStr) {
                     // 3.1 — บังคับเคลียร์แคช Illustrator ทันทีหลัง Scale เสร็จ
                     app.redraw();
 
-                    // 3.2 — ดึง Background bounds ใหม่สด (หลัง redraw แล้ว!)
+                    // 3.2 — ดึง Background Mask bounds ใหม่สด (หลัง redraw แล้ว!)
                     var sourceBg = dupMaster.groupItems.getByName("Background");
-                    var sourceBounds = sourceBg.visibleBounds;
-                    $.writeln('Source BG Bounds (after redraw): ' + sourceBounds);
+                    var sourceBounds = getMainMaskBounds(sourceBg);
 
-                    // 3.3 — ดึง Target bounds
+                    // ตรวจสอบว่าหาหน้ากากเจอหรือไม่ ถ้าไม่เจอให้ฟ้องผู้ใช้ทันที ห้ามเงียบ!
+                    if (!sourceBounds) {
+                        alert('CRITICAL ERROR: \u0e44\u0e21\u0e48\u0e1e\u0e1a Clipping Mask \u0e2b\u0e25\u0e31\u0e01\u0e43\u0e19\u0e42\u0e1f\u0e25\u0e40\u0e14\u0e2d\u0e23\u0e4c Background \u0e02\u0e2d\u0e07\u0e0a\u0e34\u0e49\u0e19\u0e2a\u0e48\u0e27\u0e19 "' + masterName + '"! \u0e23\u0e30\u0e1a\u0e1a\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e04\u0e48\u0e32 Fallback \u0e0b\u0e36\u0e48\u0e07\u0e2d\u0e32\u0e08\u0e17\u0e33\u0e43\u0e2b\u0e49\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e04\u0e25\u0e32\u0e14\u0e40\u0e04\u0e25\u0e37\u0e48\u0e2d\u0e19');
+                        sourceBounds = sourceBg.visibleBounds;
+                    }
+                    $.writeln('Source BG Mask Bounds (after redraw): ' + sourceBounds);
+
+                    // 3.3 — คำนวณ Target Center
                     var targetCenterX = (targetBounds[0] + targetBounds[2]) / 2;
                     var targetCenterY = (targetBounds[1] + targetBounds[3]) / 2;
 
@@ -171,7 +174,8 @@ function generatePatterns(isBasketballStr) {
 
                     // === STEP 4: จัดศูนย์ Background แกน X ===
                     app.redraw();
-                    var updatedBgBounds = dupMaster.groupItems.getByName("Background").visibleBounds;
+                    var updatedBgBounds = getMainMaskBounds(dupMaster.groupItems.getByName("Background"));
+                    if (!updatedBgBounds) updatedBgBounds = dupMaster.groupItems.getByName("Background").visibleBounds;
                     var currentBgCX = (updatedBgBounds[0] + updatedBgBounds[2]) / 2;
                     bgGroup.translate(targetCenterX - currentBgCX, 0);
                     
@@ -213,11 +217,15 @@ function generatePatterns(isBasketballStr) {
                     // บังคับเคลียร์แคชก่อนดึงค่า bounds
                     app.redraw();
                     
-                    // ดึง bounds ใหม่สดหลัง redraw
+                    // ดึง bounds ใหม่สดหลัง redraw - ใช้ Direct DOM Targeting
                     var fbSourceBounds;
                     try {
                         var fbBg = dupMaster.groupItems.getByName("Background");
-                        fbSourceBounds = fbBg.visibleBounds;
+                        fbSourceBounds = getMainMaskBounds(fbBg);
+                        if (!fbSourceBounds) {
+                            alert('CRITICAL ERROR: \u0e44\u0e21\u0e48\u0e1e\u0e1a Clipping Mask \u0e2b\u0e25\u0e31\u0e01\u0e43\u0e19\u0e42\u0e1f\u0e25\u0e40\u0e14\u0e2d\u0e23\u0e4c Background (Fallback Mode)! \u0e23\u0e30\u0e1a\u0e1a\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e04\u0e48\u0e32 visibleBounds \u0e0b\u0e36\u0e48\u0e07\u0e2d\u0e32\u0e08\u0e17\u0e33\u0e43\u0e2b\u0e49\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e04\u0e25\u0e32\u0e14\u0e40\u0e04\u0e25\u0e37\u0e48\u0e2d\u0e19');
+                            fbSourceBounds = fbBg.visibleBounds;
+                        }
                     } catch (eBg) {
                         fbSourceBounds = dupMaster.geometricBounds;
                     }
